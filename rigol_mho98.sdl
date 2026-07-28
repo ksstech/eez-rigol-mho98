@@ -1,0 +1,303 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<ScpiDefinition xmlns="http://www.agilent.com/schemas/SCPIDL/2008" documentVersion="1.0" friendlyName="Rigol MHO98" schemaVersion="1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.agilent.com/schemas/SCPIDL/2008 ScpiDefinitionLanguage.xsd">
+    <GlobalDefinitions>
+    <Enum name="AcqType">
+        <Member mnemonic="NORMal" value="1"/>
+        <Member mnemonic="AVERages" value="2"/>
+        <Member mnemonic="PEAK" value="3"/>
+        <Member mnemonic="HRESolution" value="4"/>
+    </Enum>
+    <Enum name="OnOff">
+        <Member mnemonic="ON" value="1"/>
+        <Member mnemonic="OFF" value="2"/>
+    </Enum>
+    <Enum name="Coupling">
+        <Member mnemonic="AC" value="1"/>
+        <Member mnemonic="DC" value="2"/>
+        <Member mnemonic="GND" value="3"/>
+    </Enum>
+    <Enum name="BWLimit">
+        <Member mnemonic="OFF" value="1"/>
+        <Member mnemonic="20M" value="2"/>
+        <Member mnemonic="100M" value="3"/>
+    </Enum>
+    <Enum name="ChanUnit">
+        <Member mnemonic="VOLT" value="1"/>
+        <Member mnemonic="WATT" value="2"/>
+        <Member mnemonic="AMP" value="3"/>
+        <Member mnemonic="UNKN" value="4"/>
+    </Enum>
+    <Enum name="Impedance">
+        <Member mnemonic="OMEG" value="1"/>
+        <Member mnemonic="FIFT" value="2"/>
+    </Enum>
+    <Enum name="TBMode">
+        <Member mnemonic="MAIN" value="1"/>
+        <Member mnemonic="XY" value="2"/>
+        <Member mnemonic="ROLL" value="3"/>
+    </Enum>
+    <Enum name="TrigMode">
+        <Member mnemonic="EDGE" value="1"/>
+        <Member mnemonic="PULSE" value="2"/>
+        <Member mnemonic="RUNT" value="3"/>
+        <Member mnemonic="WIND" value="4"/>
+        <Member mnemonic="NEDG" value="5"/>
+        <Member mnemonic="SLOP" value="6"/>
+        <Member mnemonic="VID" value="7"/>
+        <Member mnemonic="PATT" value="8"/>
+        <Member mnemonic="RS232" value="9"/>
+        <Member mnemonic="IIC" value="10"/>
+        <Member mnemonic="SPI" value="11"/>
+    </Enum>
+    <Enum name="TrigSweep">
+        <Member mnemonic="AUTO" value="1"/>
+        <Member mnemonic="NORM" value="2"/>
+        <Member mnemonic="SING" value="3"/>
+    </Enum>
+    <Enum name="TrigSlope">
+        <Member mnemonic="POS" value="1"/>
+        <Member mnemonic="NEG" value="2"/>
+        <Member mnemonic="RFAL" value="3"/>
+    </Enum>
+    <Enum name="TrigCouple">
+        <Member mnemonic="DC" value="1"/>
+        <Member mnemonic="AC" value="2"/>
+        <Member mnemonic="LFR" value="3"/>
+        <Member mnemonic="HFR" value="4"/>
+    </Enum>
+    <Enum name="WavMode">
+        <Member mnemonic="NORMal" value="1"/>
+        <Member mnemonic="MAXimum" value="2"/>
+        <Member mnemonic="RAW" value="3"/>
+    </Enum>
+    <Enum name="WavFormat">
+        <Member mnemonic="WORD" value="1"/>
+        <Member mnemonic="BYTE" value="2"/>
+        <Member mnemonic="ASC" value="3"/>
+    </Enum>
+    <Enum name="DispType">
+        <Member mnemonic="VECT" value="1"/>
+        <Member mnemonic="DOTS" value="2"/>
+    </Enum>
+    <Enum name="AWGShape">
+        <Member mnemonic="SINusoid" value="1"/>
+        <Member mnemonic="SQUare" value="2"/>
+        <Member mnemonic="RAMP" value="3"/>
+        <Member mnemonic="PULSe" value="4"/>
+        <Member mnemonic="NOISe" value="5"/>
+        <Member mnemonic="DC" value="6"/>
+        <Member mnemonic="Sinc" value="7"/>
+        <Member mnemonic="ERISe" value="8"/>
+        <Member mnemonic="EFALl" value="9"/>
+        <Member mnemonic="ECG" value="10"/>
+        <Member mnemonic="GAUSs" value="11"/>
+        <Member mnemonic="HAVERsine" value="12"/>
+        <Member mnemonic="LOrentz" value="13"/>
+        <Member mnemonic="ARBI" value="14"/>
+    </Enum>
+    <Enum name="AWGImp">
+        <Member mnemonic="50" value="1"/>
+        <Member mnemonic="OMEG" value="2"/>
+    </Enum>
+    </GlobalDefinitions>
+
+    <SubsystemNode mnemonic="*">
+        <CommandNode mnemonic="IDN" isQuery="true"/>
+        <CommandNode mnemonic="RST"/>
+        <CommandNode mnemonic="CLS"/>
+        <CommandNode mnemonic="OPC"/>
+        <CommandNode mnemonic="OPC" isQuery="true"/>
+        <CommandNode mnemonic="WAI"/>
+    </SubsystemNode>
+    <SubsystemNode mnemonic="SYSTem">
+        <CommandNode mnemonic="RUN"/>
+        <CommandNode mnemonic="STOP"/>
+        <CommandNode mnemonic="AUToset"/>
+        <CommandNode mnemonic="PRESet"/>
+        <CommandNode mnemonic="LOCk"/>
+        <CommandNode mnemonic="REMote"/>
+        <CommandNode mnemonic="LOCal"/>
+        <QueryNode mnemonic="ERRor"/>
+        <QueryNode mnemonic="VERSion"/>
+    </SubsystemNode>
+    <SubsystemNode mnemonic="ACQuire">
+        <CommandNode mnemonic="TYPE"/>
+        <QueryNode mnemonic="TYPE"/>
+        <CommandNode mnemonic="AVERages"/>
+        <QueryNode mnemonic="AVERages"/>
+        <CommandNode mnemonic="MDEPth"/>
+        <QueryNode mnemonic="MDEPth"/>
+        <QueryNode mnemonic="SRATe"/>
+    </SubsystemNode>
+    <SubsystemNode mnemonic="CHANnel[1-2]">
+        <CommandNode mnemonic="DISPlay"/>
+        <QueryNode mnemonic="DISPlay"/>
+        <CommandNode mnemonic="SCALe"/>
+        <QueryNode mnemonic="SCALe"/>
+        <CommandNode mnemonic="OFFSet"/>
+        <QueryNode mnemonic="OFFSet"/>
+        <CommandNode mnemonic="COUPling"/>
+        <QueryNode mnemonic="COUPling"/>
+        <CommandNode mnemonic="BANDwidth"/>
+        <QueryNode mnemonic="BANDwidth"/>
+        <CommandNode mnemonic="PROBe"/>
+        <QueryNode mnemonic="PROBe"/>
+        <CommandNode mnemonic="INVert"/>
+        <QueryNode mnemonic="INVert"/>
+        <CommandNode mnemonic="UNIT"/>
+        <QueryNode mnemonic="UNIT"/>
+        <CommandNode mnemonic="IMPedance"/>
+        <QueryNode mnemonic="IMPedance"/>
+        <CommandNode mnemonic="LABel"/>
+        <QueryNode mnemonic="LABel"/>
+    </SubsystemNode>
+    <SubsystemNode mnemonic="TIMebase">
+        <SubsystemNode mnemonic="MAIN">
+            <CommandNode mnemonic="SCALe"/>
+            <QueryNode mnemonic="SCALe"/>
+            <CommandNode mnemonic="OFFSet"/>
+            <QueryNode mnemonic="OFFSet"/>
+        </SubsystemNode>
+        <CommandNode mnemonic="MODE"/>
+        <QueryNode mnemonic="MODE"/>
+    </SubsystemNode>
+    <SubsystemNode mnemonic="TRIGger">
+        <CommandNode mnemonic="MODE"/>
+        <QueryNode mnemonic="MODE"/>
+        <QueryNode mnemonic="STATus"/>
+        <CommandNode mnemonic="SWEep"/>
+        <QueryNode mnemonic="SWEep"/>
+        <CommandNode mnemonic="COUPling"/>
+        <QueryNode mnemonic="COUPling"/>
+        <SubsystemNode mnemonic="EDGE">
+            <CommandNode mnemonic="SOURce"/>
+            <QueryNode mnemonic="SOURce"/>
+            <CommandNode mnemonic="LEVel"/>
+            <QueryNode mnemonic="LEVel"/>
+            <CommandNode mnemonic="SLOPe"/>
+            <QueryNode mnemonic="SLOPe"/>
+        </SubsystemNode>
+    </SubsystemNode>
+    <SubsystemNode mnemonic="MEASure">
+        <CommandNode mnemonic="SOURce"/>
+        <QueryNode mnemonic="SOURce"/>
+        <QueryNode mnemonic="VMAX"/>
+        <QueryNode mnemonic="VMIN"/>
+        <QueryNode mnemonic="VPP"/>
+        <QueryNode mnemonic="VAMP"/>
+        <QueryNode mnemonic="VRMS"/>
+        <QueryNode mnemonic="VAVG"/>
+        <QueryNode mnemonic="FREQuency"/>
+        <QueryNode mnemonic="PERiod"/>
+        <QueryNode mnemonic="PWIDth"/>
+        <QueryNode mnemonic="NWIDth"/>
+        <QueryNode mnemonic="RISetime"/>
+        <QueryNode mnemonic="FALLtime"/>
+        <QueryNode mnemonic="PDUTycycle"/>
+        <QueryNode mnemonic="OVERshoot"/>
+        <CommandNode mnemonic="CLEar"/>
+        <SubsystemNode mnemonic="STATistic">
+            <CommandNode mnemonic="DISPlay"/>
+            <CommandNode mnemonic="RESET"/>
+        </SubsystemNode>
+    </SubsystemNode>
+    <SubsystemNode mnemonic="WAVeform">
+        <CommandNode mnemonic="SOURce"/>
+        <QueryNode mnemonic="SOURce"/>
+        <CommandNode mnemonic="MODE"/>
+        <QueryNode mnemonic="MODE"/>
+        <CommandNode mnemonic="FORMat"/>
+        <QueryNode mnemonic="FORMat"/>
+        <CommandNode mnemonic="STARt"/>
+        <QueryNode mnemonic="STARt"/>
+        <CommandNode mnemonic="STOP"/>
+        <QueryNode mnemonic="STOP"/>
+        <QueryNode mnemonic="DATA"/>
+        <QueryNode mnemonic="XINCrement"/>
+        <QueryNode mnemonic="XORigin"/>
+        <QueryNode mnemonic="YINCrement"/>
+        <QueryNode mnemonic="YORigin"/>
+        <QueryNode mnemonic="YREFerence"/>
+        <QueryNode mnemonic="PREamble"/>
+    </SubsystemNode>
+    <SubsystemNode mnemonic="DISPlay">
+        <CommandNode mnemonic="TYPE"/>
+        <QueryNode mnemonic="TYPE"/>
+        <CommandNode mnemonic="CLEar"/>
+        <QueryNode mnemonic="DATA"/>
+        <SubsystemNode mnemonic="GRADing">
+            <CommandNode mnemonic="TIME"/>
+            <QueryNode mnemonic="TIME"/>
+        </SubsystemNode>
+    </SubsystemNode>
+    <SubsystemNode mnemonic="SOURce">
+        <SubsystemNode mnemonic="FUNCtion">
+            <CommandNode mnemonic="SHAPe"/>
+            <QueryNode mnemonic="SHAPe"/>
+        </SubsystemNode>
+        <SubsystemNode mnemonic="FREQuency">
+            <CommandNode mnemonic="FIXed"/>
+            <QueryNode mnemonic="FIXed"/>
+        </SubsystemNode>
+        <SubsystemNode mnemonic="VOLTage">
+            <SubsystemNode mnemonic="LEVel">
+                <SubsystemNode mnemonic="IMMediate">
+                    <CommandNode mnemonic="AMPLitude"/>
+                    <QueryNode mnemonic="AMPLitude"/>
+                    <CommandNode mnemonic="OFFSet"/>
+                    <QueryNode mnemonic="OFFSet"/>
+                </SubsystemNode>
+            </SubsystemNode>
+        </SubsystemNode>
+        <SubsystemNode mnemonic="PHASe">
+            <CommandNode mnemonic="ADJust"/>
+            <QueryNode mnemonic="ADJust"/>
+        </SubsystemNode>
+        <SubsystemNode mnemonic="SQUare">
+            <CommandNode mnemonic="DCYCle"/>
+            <QueryNode mnemonic="DCYCle"/>
+        </SubsystemNode>
+        <SubsystemNode mnemonic="PULSe">
+            <CommandNode mnemonic="WIDTh"/>
+            <QueryNode mnemonic="WIDTh"/>
+        </SubsystemNode>
+    </SubsystemNode>
+    <SubsystemNode mnemonic="OUTPut">
+        <CommandNode mnemonic="STATe"/>
+        <QueryNode mnemonic="STATe"/>
+        <CommandNode mnemonic="IMPedance"/>
+        <QueryNode mnemonic="IMPedance"/>
+    </SubsystemNode>
+    <SubsystemNode mnemonic="MATHematic[1-2]">
+        <CommandNode mnemonic="DISPlay"/>
+        <QueryNode mnemonic="DISPlay"/>
+        <CommandNode mnemonic="OPERator"/>
+        <QueryNode mnemonic="OPERator"/>
+        <CommandNode mnemonic="SCALe"/>
+        <QueryNode mnemonic="SCALe"/>
+        <CommandNode mnemonic="OFFSet"/>
+        <QueryNode mnemonic="OFFSet"/>
+        <SubsystemNode mnemonic="FFT">
+            <CommandNode mnemonic="SOURce"/>
+            <CommandNode mnemonic="WINDow"/>
+            <QueryNode mnemonic="WINDow"/>
+            <CommandNode mnemonic="UNIT"/>
+        </SubsystemNode>
+    </SubsystemNode>
+    <SubsystemNode mnemonic="CURSor">
+        <CommandNode mnemonic="MODE"/>
+        <QueryNode mnemonic="MODE"/>
+        <SubsystemNode mnemonic="MANual">
+            <CommandNode mnemonic="TYPE"/>
+            <CommandNode mnemonic="AX"/>
+            <QueryNode mnemonic="AX"/>
+            <CommandNode mnemonic="BX"/>
+            <QueryNode mnemonic="BX"/>
+            <CommandNode mnemonic="AY"/>
+            <QueryNode mnemonic="AY"/>
+            <CommandNode mnemonic="BY"/>
+            <QueryNode mnemonic="BY"/>
+        </SubsystemNode>
+    </SubsystemNode>
+
+</ScpiDefinition>

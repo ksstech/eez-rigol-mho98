@@ -1,0 +1,380 @@
+{
+  "id": "a7c3e910-9b2c-4d53-bac9-8acf3e009800",
+  "name": "rigol_mho98",
+  "displayName": "Rigol MHO98",
+  "version": "1.0.4",
+  "description": "Rigol MHO98 4-channel 1 GHz 4 GSa/s oscilloscope with dual 100 MHz arbitrary waveform generator. Firmware v1.05.02.",
+  "author": "Community",
+  "image": "image.png",
+  "eez-studio": {
+    "properties": {
+      "idn": "RIGOL TECHNOLOGIES,MHO98",
+      "connection": {
+        "ethernet": {
+          "port": 5555
+        },
+        "usbtmc": {
+          "idVendor": "0x1ab1",
+          "idProduct": "0x0517"
+        }
+      },
+      "channels": [
+        {
+          "color": "#FBFB00",
+          "colorInverse": "#AEAE00"
+        },
+        {
+          "color": "#03FFFF",
+          "colorInverse": "#00B5B5"
+        },
+        {
+          "color": "#F000F0",
+          "colorInverse": "#A300A3"
+        },
+        {
+          "color": "#007FFF",
+          "colorInverse": "#0059B3"
+        }
+      ]
+    },
+    "shortcuts": [
+      {
+        "id": "fdce9d59-d035-41b8-a185-b270e3e94d3b",
+        "name": "Run",
+        "action": {
+          "type": "scpi-commands",
+          "data": ":RUN"
+        },
+        "showInToolbar": true,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#4CAF50",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "3ae0311c-c090-42c8-b53b-e4ed510162d0",
+        "name": "Stop",
+        "action": {
+          "type": "scpi-commands",
+          "data": ":STOP"
+        },
+        "showInToolbar": true,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#F44336",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "3f43969c-af46-481b-aa2d-5e0d1c7ea446",
+        "name": "Single",
+        "action": {
+          "type": "scpi-commands",
+          "data": ":SINGle"
+        },
+        "showInToolbar": true,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#FF9800",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "c95264f2-4c1b-4fe3-afca-10b9f0054ec1",
+        "name": "Auto",
+        "action": {
+          "type": "scpi-commands",
+          "data": ":AUToset"
+        },
+        "showInToolbar": true,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#9C27B0",
+        "requiresConfirmation": true
+      },
+      {
+        "id": "a51054c6-88fe-4776-a795-1bf081cc121e",
+        "name": "Force",
+        "action": {
+          "type": "scpi-commands",
+          "data": ":TFORce"
+        },
+        "showInToolbar": true,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#607D8B",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "a03dbbcc-5366-4154-b972-2e3e3c1a6511",
+        "name": "Capture",
+        "action": {
+          "type": "javascript",
+          "data": "\nfunction qts(r){\n    if(r===null||r===undefined)return\"\";\n    if(typeof r===\"string\")return r;\n    if(typeof r===\"number\")return String(r);\n    if(r.data){var t=new TextDecoder().decode(new Uint8Array(r.data));return t.charAt(0)==='#'?t.substring(2+parseInt(t.charAt(1))):t;}\n    return String(r);\n}\nfunction siFmt(v,unit){\n    if(!isFinite(v))return String(v)+\" \"+unit;\n    var a=Math.abs(v),sg=v<0?\"-\":\"\";\n    var P=[[1e9,\"G\"],[1e6,\"M\"],[1e3,\"k\"],[1,\"\"],[1e-3,\"m\"],[1e-6,\"\\u00b5\"],[1e-9,\"n\"],[1e-12,\"p\"]];\n    if(a===0)return\"0 \"+unit;\n    for(var i=0;i<P.length;i++){if(a>=P[i][0]*0.9999)return sg+parseFloat((a/P[i][0]).toPrecision(5))+\" \"+P[i][1]+unit;}\n    return sg+a.toExponential(3)+\" \"+unit;\n}\nasync function resetAndAcquire(){\n    try{connection.release();}catch(e){}\n    await new Promise(r=>setTimeout(r,400));\n    await connection.acquire(true);\n}\n\n// \u2500\u2500 MHO98 Waveform Capture v1 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n// Captures all displayed analog channels to charts.\n// Conversion: V = (raw - YORigin - YREFerence) * YINCrement   (Rigol standard)\n// Uses RIGOL_BYTE format (2) with chunked DATA? reads.\nconst CHUNK = 250000;          // points per DATA? chunk\nconst NUM_CH = instrument.properties.channels.length;\n\nawait resetAndAcquire();\nvar toast = notify.info(\"MHO98: scanning channels...\", {autoClose:false});\ntry {\n    // Find displayed channels\n    var shown = [];\n    for (var c=1; c<=NUM_CH; c++) {\n        var disp = qts(await connection.query(\"CHANnel\"+c+\":DISPlay?\")).trim();\n        if (disp===\"1\"||disp.toUpperCase()===\"ON\") shown.push(c);\n    }\n    if (shown.length===0) throw new Error(\"No channels are displayed\");\n\n    // Stop for stable RAW memory read\n    connection.command(\":STOP\");\n    connection.command(\":WAVeform:MODE RAW\");\n    connection.command(\":WAVeform:FORMat BYTE\");\n    await new Promise(r=>setTimeout(r,200));\n\n    var srate = parseFloat(qts(await connection.query(\":ACQuire:SRATe?\")));\n    var tscale = parseFloat(qts(await connection.query(\":TIMebase:SCALe?\")));\n\n    for (var k=0; k<shown.length; k++) {\n        var ch = shown[k];\n        connection.command(\":WAVeform:SOURce CHANnel\"+ch);\n        await new Promise(r=>setTimeout(r,100));\n\n        var pre = qts(await connection.query(\":WAVeform:PREamble?\")).trim().split(\",\");\n        var npts = parseInt(pre[2]);\n        var yinc = parseFloat(pre[7]), yor = parseFloat(pre[8]), yref = parseFloat(pre[9]);\n        var cScale = parseFloat(qts(await connection.query(\"CHANnel\"+ch+\":SCALe?\")));\n        var cUnit  = qts(await connection.query(\"CHANnel\"+ch+\":UNITs?\")).trim();\n        var unit = \"volt\";\n        if (/CURR|AMP/i.test(cUnit)) unit=\"amp\";\n        else if (/WATT/i.test(cUnit)) unit=\"watt\";\n\n        var col  = instrument.properties.channels[ch-1].color;\n        var colI = instrument.properties.channels[ch-1].colorInverse;\n        var offset = -(yor + yref) * yinc;\n\n        // Chunked read\n        var data = [];\n        var nChunks = Math.ceil(npts / CHUNK);\n        for (var j=0; j<nChunks; j++) {\n            notify.update(toast,{render:\"CH\"+ch+\": reading chunk \"+(j+1)+\"/\"+nChunks+\" (\"+npts+\" pts)\",autoClose:false});\n            var start = j*CHUNK + 1;\n            var stop  = Math.min((j+1)*CHUNK, npts);\n            connection.command(\":WAVeform:STARt \"+start);\n            connection.command(\":WAVeform:STOP \"+stop);\n            var wf = await connection.query(\":WAVeform:DATA?\");\n            if (wf && wf.data) { data.push(wf.data); if(wf.deleteLog) wf.deleteLog(); }\n        }\n\n        session.addChart({\n            description: \"MHO98 CH\"+ch+\"  \"+siFmt(srate,\"Sa/s\")+\"  \"+npts+\" pts  \"+siFmt(cScale,\"V\")+\"/div\",\n            data: data, samplingRate: srate,\n            offset: offset, scale: yinc, format: 2,\n            unit: unit, color: col, colorInverse: colI,\n            label: \"CH\"+ch,\n            viewOptions:{axesLines:{type:\"fixed\",majorSubdivision:{horizontal:12,vertical:8},minorSubdivision:{horizontal:5,vertical:5}}},\n            horizontalScale: tscale, verticalScale: cScale\n        });\n    }\n    notify.dismiss(toast);\n    notify.info(\"MHO98: captured \"+shown.length+\" channel(s): CH\"+shown.join(\", CH\"));\n} catch(e) {\n    notify.update(toast,{render:\"Capture failed: \"+e.message,autoClose:5000,type:\"error\"});\n} finally {\n    connection.release();\n}\n"
+        },
+        "showInToolbar": true,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#2196F3",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "13f9a186-94d1-443e-9fa4-0165db0549f8",
+        "name": "Live Meas",
+        "action": {
+          "type": "javascript",
+          "data": "\nfunction qts(r){\n    if(r===null||r===undefined)return\"\";\n    if(typeof r===\"string\")return r;\n    if(typeof r===\"number\")return String(r);\n    if(r.data){var t=new TextDecoder().decode(new Uint8Array(r.data));return t.charAt(0)==='#'?t.substring(2+parseInt(t.charAt(1))):t;}\n    return String(r);\n}\nfunction siFmt(v,unit){\n    if(!isFinite(v))return String(v)+\" \"+unit;\n    var a=Math.abs(v),sg=v<0?\"-\":\"\";\n    var P=[[1e9,\"G\"],[1e6,\"M\"],[1e3,\"k\"],[1,\"\"],[1e-3,\"m\"],[1e-6,\"\\u00b5\"],[1e-9,\"n\"],[1e-12,\"p\"]];\n    if(a===0)return\"0 \"+unit;\n    for(var i=0;i<P.length;i++){if(a>=P[i][0]*0.9999)return sg+parseFloat((a/P[i][0]).toPrecision(5))+\" \"+P[i][1]+unit;}\n    return sg+a.toExponential(3)+\" \"+unit;\n}\nasync function resetAndAcquire(){\n    try{connection.release();}catch(e){}\n    await new Promise(r=>setTimeout(r,400));\n    await connection.acquire(true);\n}\n\n// \u2500\u2500 MHO98 Live Measurements \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n// Continuous Vpp/Vrms/Freq/Period/Vmax/Vmin readout for one channel.\n// STOP: click the red Stop button in EEZ (toolbar/script runner) at any time.\n// A bounded MAX_READS guarantees the script ends on its own as a safety net.\nconst CH       = 1;       // channel to measure\nconst MAX_READS = 600;    // safety cap (~3 min @ 300ms); set higher if needed\nconst INTERVAL  = 300;    // ms between updates\n\nconst ITEMS  = [\"VPP\",\"VRMS\",\"FREQuency\",\"PERiod\",\"VMAX\",\"VMIN\"];\nconst LABELS = [\"Vpp\",\"Vrms\",\"Freq\",\"Period\",\"Vmax\",\"Vmin\"];\nconst UNITS  = [\"V\",\"V\",\"Hz\",\"s\",\"V\",\"V\"];\n\nawait resetAndAcquire();\nvar toast = notify.info(\"MHO98 Live Meas CH\"+CH+\" \u2014 click Stop to end\", {autoClose:false});\ntry {\n    connection.command(\":RUN\");\n    var i=0;\n    while (i < MAX_READS) {\n        if (session.isStopped) break;          // checked every loop, before any query\n        var parts=[];\n        for (var m=0; m<ITEMS.length; m++) {\n            if (session.isStopped) break;       // also check between queries\n            var v = parseFloat(qts(await connection.query(\":MEASure:ITEM? \"+ITEMS[m]+\",CHANnel\"+CH)));\n            parts.push(LABELS[m]+\" \"+(Math.abs(v)>9e36?\"--\":siFmt(v,UNITS[m])));\n        }\n        if (session.isStopped) break;\n        notify.update(toast,{render:\"CH\"+CH+\"  [\"+(i+1)+\"/\"+MAX_READS+\"]  \\u2502  \"+parts.join(\"   \"),autoClose:false});\n        i++;\n        // Sleep in short slices so Stop is honoured quickly\n        for (var w=0; w<INTERVAL/50 && !session.isStopped; w++) {\n            await new Promise(r=>setTimeout(r,50));\n        }\n    }\n    notify.update(toast,{render:\"Live Meas stopped after \"+i+\" reads (CH\"+CH+\")\",autoClose:3000});\n} catch(e) {\n    notify.update(toast,{render:\"Live meas failed: \"+e.message,autoClose:5000,type:\"error\"});\n} finally {\n    connection.release();\n}\n"
+        },
+        "showInToolbar": true,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#00BCD4",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "b949545f-d2c8-4777-8a3e-2e0cefaeb54d",
+        "name": "Vertical",
+        "action": {
+          "type": "javascript",
+          "data": "\nfunction qts(r){\n    if(r===null||r===undefined)return\"\";\n    if(typeof r===\"string\")return r;\n    if(typeof r===\"number\")return String(r);\n    if(r.data){var t=new TextDecoder().decode(new Uint8Array(r.data));return t.charAt(0)==='#'?t.substring(2+parseInt(t.charAt(1))):t;}\n    return String(r);\n}\nfunction siFmt(v,unit){\n    if(!isFinite(v))return String(v)+\" \"+unit;\n    var a=Math.abs(v),sg=v<0?\"-\":\"\";\n    var P=[[1e9,\"G\"],[1e6,\"M\"],[1e3,\"k\"],[1,\"\"],[1e-3,\"m\"],[1e-6,\"\\u00b5\"],[1e-9,\"n\"],[1e-12,\"p\"]];\n    if(a===0)return\"0 \"+unit;\n    for(var i=0;i<P.length;i++){if(a>=P[i][0]*0.9999)return sg+parseFloat((a/P[i][0]).toPrecision(5))+\" \"+P[i][1]+unit;}\n    return sg+a.toExponential(3)+\" \"+unit;\n}\nasync function resetAndAcquire(){\n    try{connection.release();}catch(e){}\n    await new Promise(r=>setTimeout(r,400));\n    await connection.acquire(true);\n}\n\n// \u2500\u2500 MHO98 Vertical Setup \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n// Configure a channel: On/Off, Coupling, Impedance, Probe, Scale, Offset,\n// Unit, BW Limit, Invert, Fine (vernier).\nawait resetAndAcquire();\ntry {\n    // Read current state of CH1 to prefill\n    var ch = 1;\n    function rd(c){ return qts(connection.query(c)); }\n\n    var vals = await input({\n        title: \"MHO98 \u2014 Vertical (Channel) Setup\",\n        size: \"medium\",\n        fields: [\n            { name:\"channel\", displayName:\"Channel\", type:\"enum\",\n              enumItems:[{id:\"1\",label:\"CH1\"},{id:\"2\",label:\"CH2\"},{id:\"3\",label:\"CH3\"},{id:\"4\",label:\"CH4\"}] },\n            { name:\"display\", displayName:\"Display\", type:\"enum\",\n              enumItems:[{id:\"ON\",label:\"On\"},{id:\"OFF\",label:\"Off\"}] },\n            { name:\"coupling\", displayName:\"Coupling\", type:\"enum\",\n              enumItems:[{id:\"DC\",label:\"DC\"},{id:\"AC\",label:\"AC\"},{id:\"GND\",label:\"GND\"}] },\n            { name:\"impedance\", displayName:\"Impedance\", type:\"enum\",\n              enumItems:[{id:\"ONEMeg\",label:\"1 M\\u03a9\"},{id:\"FIFTy\",label:\"50 \\u03a9\"}] },\n            { name:\"probe\", displayName:\"Probe Ratio\", type:\"enum\",\n              enumItems:[{id:\"0.01\",label:\"0.01X\"},{id:\"0.1\",label:\"0.1X\"},{id:\"1\",label:\"1X\"},{id:\"10\",label:\"10X\"},{id:\"100\",label:\"100X\"},{id:\"1000\",label:\"1000X\"}] },\n            { name:\"scale\", displayName:\"Scale (V/div)\", type:\"number\", unit:\"voltage\" },\n            { name:\"offset\", displayName:\"Offset (V)\", type:\"number\", unit:\"voltage\" },\n            { name:\"unit\", displayName:\"Unit\", type:\"enum\",\n              enumItems:[{id:\"VOLTage\",label:\"Volt\"},{id:\"AMPere\",label:\"Amp\"},{id:\"WATT\",label:\"Watt\"},{id:\"UNKNown\",label:\"Unknown\"}] },\n            { name:\"bwlimit\", displayName:\"BW Limit\", type:\"enum\",\n              enumItems:[{id:\"OFF\",label:\"Off (Full)\"},{id:\"20M\",label:\"20 MHz\"},{id:\"250M\",label:\"250 MHz\"}] },\n            { name:\"invert\", displayName:\"Invert\", type:\"boolean\" },\n            { name:\"vernier\", displayName:\"Fine (Vernier)\", type:\"boolean\" }\n        ]\n    }, {\n        channel:\"1\", display:\"ON\", coupling:\"DC\", impedance:\"ONEMeg\",\n        probe:\"1\", scale:0.05, offset:0, unit:\"VOLTage\", bwlimit:\"OFF\",\n        invert:false, vernier:false\n    });\n\n    if (!vals) { notify.info(\"Vertical setup cancelled\"); connection.release(); return; }\n\n    var c = vals.channel;\n    connection.command(\":CHANnel\"+c+\":DISPlay \"+vals.display);\n    connection.command(\":CHANnel\"+c+\":COUPling \"+vals.coupling);\n    connection.command(\":CHANnel\"+c+\":IMPedance \"+vals.impedance);\n    connection.command(\":CHANnel\"+c+\":PROBe \"+vals.probe);\n    connection.command(\":CHANnel\"+c+\":SCALe \"+vals.scale);\n    connection.command(\":CHANnel\"+c+\":OFFSet \"+vals.offset);\n    connection.command(\":CHANnel\"+c+\":UNITs \"+vals.unit);\n    connection.command(\":CHANnel\"+c+\":BWLimit \"+vals.bwlimit);\n    connection.command(\":CHANnel\"+c+\":INVert \"+(vals.invert?\"ON\":\"OFF\"));\n    connection.command(\":CHANnel\"+c+\":VERNier \"+(vals.vernier?\"ON\":\"OFF\"));\n    await new Promise(r=>setTimeout(r,150));\n\n    var sc = parseFloat(qts(await connection.query(\":CHANnel\"+c+\":SCALe?\")));\n    var of = parseFloat(qts(await connection.query(\":CHANnel\"+c+\":OFFSet?\")));\n    notify.info(\"CH\"+c+\" set: \"+vals.display+\" \"+vals.coupling+\" \"+siFmt(sc,\"V\")+\"/div offset \"+siFmt(of,\"V\")+\" probe \"+vals.probe+\"X BW \"+vals.bwlimit);\n} catch(e) {\n    notify.error(\"Vertical setup failed: \"+e.message);\n} finally {\n    connection.release();\n}\n"
+        },
+        "showInToolbar": true,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#FFC107",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "6c170201-8c54-4502-b999-140667218ad9",
+        "name": "Trigger",
+        "action": {
+          "type": "javascript",
+          "data": "\nfunction qts(r){\n    if(r===null||r===undefined)return\"\";\n    if(typeof r===\"string\")return r;\n    if(typeof r===\"number\")return String(r);\n    if(r.data){var t=new TextDecoder().decode(new Uint8Array(r.data));return t.charAt(0)==='#'?t.substring(2+parseInt(t.charAt(1))):t;}\n    return String(r);\n}\nfunction siFmt(v,unit){\n    if(!isFinite(v))return String(v)+\" \"+unit;\n    var a=Math.abs(v),sg=v<0?\"-\":\"\";\n    var P=[[1e9,\"G\"],[1e6,\"M\"],[1e3,\"k\"],[1,\"\"],[1e-3,\"m\"],[1e-6,\"\\u00b5\"],[1e-9,\"n\"],[1e-12,\"p\"]];\n    if(a===0)return\"0 \"+unit;\n    for(var i=0;i<P.length;i++){if(a>=P[i][0]*0.9999)return sg+parseFloat((a/P[i][0]).toPrecision(5))+\" \"+P[i][1]+unit;}\n    return sg+a.toExponential(3)+\" \"+unit;\n}\nasync function resetAndAcquire(){\n    try{connection.release();}catch(e){}\n    await new Promise(r=>setTimeout(r,400));\n    await connection.acquire(true);\n}\n\n// \u2500\u2500 MHO98 Trigger Setup \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n// Edge trigger: Source, Slope, Level, Sweep, Coupling, Holdoff, Noise Reject.\nawait resetAndAcquire();\ntry {\n    var vals = await input({\n        title: \"MHO98 \u2014 Trigger Setup (Edge)\",\n        size: \"medium\",\n        fields: [\n            { name:\"source\", displayName:\"Source\", type:\"enum\",\n              enumItems:[{id:\"CHANnel1\",label:\"CH1\"},{id:\"CHANnel2\",label:\"CH2\"},{id:\"CHANnel3\",label:\"CH3\"},{id:\"CHANnel4\",label:\"CH4\"},{id:\"AC\",label:\"AC Line\"}] },\n            { name:\"slope\", displayName:\"Slope\", type:\"enum\",\n              enumItems:[{id:\"POSitive\",label:\"Rising \\u2197\"},{id:\"NEGative\",label:\"Falling \\u2198\"},{id:\"RFALl\",label:\"Either \\u2195\"}] },\n            { name:\"level\", displayName:\"Level (V)\", type:\"number\", unit:\"voltage\" },\n            { name:\"sweep\", displayName:\"Sweep\", type:\"enum\",\n              enumItems:[{id:\"AUTO\",label:\"Auto\"},{id:\"NORMal\",label:\"Normal\"},{id:\"SINGle\",label:\"Single\"}] },\n            { name:\"coupling\", displayName:\"Coupling\", type:\"enum\",\n              enumItems:[{id:\"DC\",label:\"DC\"},{id:\"AC\",label:\"AC\"},{id:\"LFReject\",label:\"LF Reject\"},{id:\"HFReject\",label:\"HF Reject\"}] },\n            { name:\"holdoff\", displayName:\"Holdoff (s)\", type:\"number\", unit:\"time\" },\n            { name:\"nreject\", displayName:\"Noise Reject\", type:\"boolean\" }\n        ]\n    }, {\n        source:\"CHANnel1\", slope:\"POSitive\", level:0, sweep:\"AUTO\",\n        coupling:\"DC\", holdoff:8e-9, nreject:false\n    });\n\n    if (!vals) { notify.info(\"Trigger setup cancelled\"); connection.release(); return; }\n\n    connection.command(\":TRIGger:MODE EDGE\");\n    connection.command(\":TRIGger:EDGE:SOURce \"+vals.source);\n    connection.command(\":TRIGger:EDGE:SLOPe \"+vals.slope);\n    connection.command(\":TRIGger:EDGE:LEVel \"+vals.level);\n    connection.command(\":TRIGger:SWEep \"+vals.sweep);\n    connection.command(\":TRIGger:COUPling \"+vals.coupling);\n    connection.command(\":TRIGger:HOLDoff \"+vals.holdoff);\n    connection.command(\":TRIGger:NREJect \"+(vals.nreject?\"ON\":\"OFF\"));\n    await new Promise(r=>setTimeout(r,150));\n\n    var lv = parseFloat(qts(await connection.query(\":TRIGger:EDGE:LEVel?\")));\n    var st = qts(await connection.query(\":TRIGger:STATus?\")).trim();\n    notify.info(\"Trigger: \"+vals.source+\" \"+vals.slope+\" @ \"+siFmt(lv,\"V\")+\" sweep \"+vals.sweep+\" [\"+st+\"]\");\n} catch(e) {\n    notify.error(\"Trigger setup failed: \"+e.message);\n} finally {\n    connection.release();\n}\n"
+        },
+        "showInToolbar": true,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#E91E63",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "df942392-2e21-4bb6-b076-b43fc38fccf9",
+        "name": "Horizontal",
+        "action": {
+          "type": "javascript",
+          "data": "\nfunction qts(r){\n    if(r===null||r===undefined)return\"\";\n    if(typeof r===\"string\")return r;\n    if(typeof r===\"number\")return String(r);\n    if(r.data){var t=new TextDecoder().decode(new Uint8Array(r.data));return t.charAt(0)==='#'?t.substring(2+parseInt(t.charAt(1))):t;}\n    return String(r);\n}\nfunction siFmt(v,unit){\n    if(!isFinite(v))return String(v)+\" \"+unit;\n    var a=Math.abs(v),sg=v<0?\"-\":\"\";\n    var P=[[1e9,\"G\"],[1e6,\"M\"],[1e3,\"k\"],[1,\"\"],[1e-3,\"m\"],[1e-6,\"\\u00b5\"],[1e-9,\"n\"],[1e-12,\"p\"]];\n    if(a===0)return\"0 \"+unit;\n    for(var i=0;i<P.length;i++){if(a>=P[i][0]*0.9999)return sg+parseFloat((a/P[i][0]).toPrecision(5))+\" \"+P[i][1]+unit;}\n    return sg+a.toExponential(3)+\" \"+unit;\n}\nasync function resetAndAcquire(){\n    try{connection.release();}catch(e){}\n    await new Promise(r=>setTimeout(r,400));\n    await connection.acquire(true);\n}\n\n// \u2500\u2500 MHO98 Horizontal / Acquisition Setup \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n// Timebase scale/position/mode + acquisition type/depth, with live SRate.\nawait resetAndAcquire();\ntry {\n    var vals = await input({\n        title: \"MHO98 \u2014 Horizontal / Acquisition\",\n        size: \"medium\",\n        fields: [\n            { name:\"tscale\", displayName:\"Time Scale (s/div)\", type:\"number\", unit:\"time\" },\n            { name:\"tpos\", displayName:\"Position / Offset (s)\", type:\"number\", unit:\"time\" },\n            { name:\"tmode\", displayName:\"Timebase Mode\", type:\"enum\",\n              enumItems:[{id:\"MAIN\",label:\"Main (YT)\"},{id:\"XY\",label:\"XY\"},{id:\"ROLL\",label:\"Roll\"}] },\n            { name:\"acqtype\", displayName:\"Acquisition Type\", type:\"enum\",\n              enumItems:[{id:\"NORMal\",label:\"Normal\"},{id:\"AVERages\",label:\"Average\"},{id:\"PEAK\",label:\"Peak Detect\"},{id:\"HRESolution\",label:\"High Res\"}] },\n            { name:\"averages\", displayName:\"Averages (2-65536)\", type:\"integer\",\n              visible:function(v){return v.acqtype===\"AVERages\";} },\n            { name:\"mdepth\", displayName:\"Memory Depth\", type:\"enum\",\n              enumItems:[{id:\"AUTO\",label:\"Auto\"},{id:\"1k\",label:\"1 k\"},{id:\"10k\",label:\"10 k\"},{id:\"100k\",label:\"100 k\"},{id:\"1M\",label:\"1 M\"},{id:\"10M\",label:\"10 M\"},{id:\"25M\",label:\"25 M\"},{id:\"50M\",label:\"50 M\"},{id:\"100M\",label:\"100 M\"},{id:\"250M\",label:\"250 M\"}] },\n            { name:\"hrefmode\", displayName:\"Expand Reference\", type:\"enum\",\n              enumItems:[{id:\"CENTer\",label:\"Center\"},{id:\"LB\",label:\"Left\"},{id:\"RB\",label:\"Right\"},{id:\"TRIG\",label:\"Trigger\"},{id:\"USER\",label:\"User\"}] }\n        ]\n    }, {\n        tscale:1e-3, tpos:0, tmode:\"MAIN\", acqtype:\"NORMal\",\n        averages:16, mdepth:\"AUTO\", hrefmode:\"CENTer\"\n    });\n\n    if (!vals) { notify.info(\"Horizontal setup cancelled\"); connection.release(); return; }\n\n    // Timebase mode\n    connection.command(\":TIMebase:MODE MAIN\");\n    connection.command(\":TIMebase:XY:ENABle \"+(vals.tmode===\"XY\"?\"ON\":\"OFF\"));\n    connection.command(\":TIMebase:ROLL \"+(vals.tmode===\"ROLL\"?\"ON\":\"OFF\"));\n    connection.command(\":TIMebase:MAIN:SCALe \"+vals.tscale);\n    connection.command(\":TIMebase:MAIN:OFFSet \"+vals.tpos);\n    connection.command(\":TIMebase:HREFerence:MODE \"+vals.hrefmode);\n    // Acquisition\n    connection.command(\":ACQuire:TYPE \"+vals.acqtype);\n    if (vals.acqtype===\"AVERages\") connection.command(\":ACQuire:AVERages \"+vals.averages);\n    connection.command(\":ACQuire:MDEPth \"+vals.mdepth);\n    await new Promise(r=>setTimeout(r,200));\n\n    var sr = parseFloat(qts(await connection.query(\":ACQuire:SRATe?\")));\n    var md = qts(await connection.query(\":ACQuire:MDEPth?\")).trim();\n    var ts = parseFloat(qts(await connection.query(\":TIMebase:MAIN:SCALe?\")));\n    notify.info(\"Horiz: \"+siFmt(ts,\"s\")+\"/div  \"+vals.acqtype+\"  depth \"+md+\"  SRate \"+siFmt(sr,\"Sa/s\"));\n} catch(e) {\n    notify.error(\"Horizontal setup failed: \"+e.message);\n} finally {\n    connection.release();\n}\n"
+        },
+        "showInToolbar": true,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#3F51B5",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "2dba5dca-b769-4b7f-981c-c00c4f6e984c",
+        "name": "Measure",
+        "action": {
+          "type": "javascript",
+          "data": "\nfunction qts(r){\n    if(r===null||r===undefined)return\"\";\n    if(typeof r===\"string\")return r;\n    if(typeof r===\"number\")return String(r);\n    if(r.data){var t=new TextDecoder().decode(new Uint8Array(r.data));return t.charAt(0)==='#'?t.substring(2+parseInt(t.charAt(1))):t;}\n    return String(r);\n}\nfunction siFmt(v,unit){\n    if(!isFinite(v))return String(v)+\" \"+unit;\n    var a=Math.abs(v),sg=v<0?\"-\":\"\";\n    var P=[[1e9,\"G\"],[1e6,\"M\"],[1e3,\"k\"],[1,\"\"],[1e-3,\"m\"],[1e-6,\"\\u00b5\"],[1e-9,\"n\"],[1e-12,\"p\"]];\n    if(a===0)return\"0 \"+unit;\n    for(var i=0;i<P.length;i++){if(a>=P[i][0]*0.9999)return sg+parseFloat((a/P[i][0]).toPrecision(5))+\" \"+P[i][1]+unit;}\n    return sg+a.toExponential(3)+\" \"+unit;\n}\nasync function resetAndAcquire(){\n    try{connection.release();}catch(e){}\n    await new Promise(r=>setTimeout(r,400));\n    await connection.acquire(true);\n}\n\n// \u2500\u2500 MHO98 Measure Setup \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n// Pick a category + item + source; reads the value and enables on-screen stat.\nawait resetAndAcquire();\ntry {\n    var V_ITEMS=[\n        {id:\"VMAX\",label:\"Vmax\"},{id:\"VMIN\",label:\"Vmin\"},{id:\"VPP\",label:\"Vpp\"},\n        {id:\"VTOP\",label:\"Vtop\"},{id:\"VBASe\",label:\"Vbase\"},{id:\"VAMP\",label:\"Vamp\"},\n        {id:\"VAVG\",label:\"Vavg\"},{id:\"VRMS\",label:\"Vrms\"},{id:\"ACRMs\",label:\"AC RMS\"},\n        {id:\"OVERshoot\",label:\"Overshoot\"},{id:\"PREShoot\",label:\"Preshoot\"},\n        {id:\"VUPPer\",label:\"Vupper\"},{id:\"VMID\",label:\"Vmid\"},{id:\"VLOWer\",label:\"Vlower\"},\n        {id:\"PVRMs\",label:\"Period Vrms\"},{id:\"MARea\",label:\"Area\"},{id:\"MPARea\",label:\"Period Area\"}\n    ];\n    var H_ITEMS=[\n        {id:\"PERiod\",label:\"Period\"},{id:\"FREQuency\",label:\"Frequency\"},\n        {id:\"RTIMe\",label:\"Rise Time\"},{id:\"FTIMe\",label:\"Fall Time\"},\n        {id:\"PWIDth\",label:\"+Width\"},{id:\"NWIDth\",label:\"-Width\"},\n        {id:\"PDUTy\",label:\"+Duty\"},{id:\"NDUTy\",label:\"-Duty\"},\n        {id:\"TVMAX\",label:\"Time@Vmax\"},{id:\"TVMIN\",label:\"Time@Vmin\"},\n        {id:\"PSLewrate\",label:\"+Slew Rate\"},{id:\"NSLewrate\",label:\"-Slew Rate\"}\n    ];\n    var O_ITEMS=[\n        {id:\"PPULses\",label:\"+Pulses\"},{id:\"NPULses\",label:\"-Pulses\"},\n        {id:\"PEDGes\",label:\"+Edges\"},{id:\"NEDGes\",label:\"-Edges\"},\n        {id:\"RRDelay\",label:\"Rise-Rise Delay\"},{id:\"RFDelay\",label:\"Rise-Fall Delay\"},\n        {id:\"FRDelay\",label:\"Fall-Rise Delay\"},{id:\"FFDelay\",label:\"Fall-Fall Delay\"},\n        {id:\"RRPHase\",label:\"Rise-Rise Phase\"},{id:\"RFPHase\",label:\"Rise-Fall Phase\"},\n        {id:\"FRPHase\",label:\"Fall-Rise Phase\"},{id:\"FFPHase\",label:\"Fall-Fall Phase\"}\n    ];\n    var UNIT_MAP={};\n    V_ITEMS.forEach(function(x){UNIT_MAP[x.id]=\"V\";});\n    [\"PERiod\",\"RTIMe\",\"FTIMe\",\"PWIDth\",\"NWIDth\",\"TVMAX\",\"TVMIN\",\"RRDelay\",\"RFDelay\",\"FRDelay\",\"FFDelay\"].forEach(function(x){UNIT_MAP[x]=\"s\";});\n    UNIT_MAP[\"FREQuency\"]=\"Hz\"; UNIT_MAP[\"PDUTy\"]=\"%\"; UNIT_MAP[\"NDUTy\"]=\"%\";\n    UNIT_MAP[\"OVERshoot\"]=\"%\"; UNIT_MAP[\"PREShoot\"]=\"%\";\n    UNIT_MAP[\"PSLewrate\"]=\"V/s\"; UNIT_MAP[\"NSLewrate\"]=\"V/s\";\n    [\"RRPHase\",\"RFPHase\",\"FRPHase\",\"FFPHase\"].forEach(function(x){UNIT_MAP[x]=\"\\u00b0\";});\n\n    var vals = await input({\n        title:\"MHO98 \u2014 Measure\",\n        size:\"medium\",\n        fields:[\n            { name:\"category\", displayName:\"Category\", type:\"enum\",\n              enumItems:[{id:\"V\",label:\"Vertical (voltage)\"},{id:\"H\",label:\"Horizontal (time)\"},{id:\"O\",label:\"Other (count/delay/phase)\"}] },\n            { name:\"vitem\", displayName:\"Item\", type:\"enum\",\n              enumItems:V_ITEMS, visible:function(v){return v.category===\"V\";} },\n            { name:\"hitem\", displayName:\"Item\", type:\"enum\",\n              enumItems:H_ITEMS, visible:function(v){return v.category===\"H\";} },\n            { name:\"oitem\", displayName:\"Item\", type:\"enum\",\n              enumItems:O_ITEMS, visible:function(v){return v.category===\"O\";} },\n            { name:\"source\", displayName:\"Source\", type:\"enum\",\n              enumItems:[{id:\"CHANnel1\",label:\"CH1\"},{id:\"CHANnel2\",label:\"CH2\"},{id:\"CHANnel3\",label:\"CH3\"},{id:\"CHANnel4\",label:\"CH4\"},{id:\"MATH1\",label:\"MATH1\"}] },\n            { name:\"source2\", displayName:\"Source 2 (delay/phase)\", type:\"enum\",\n              enumItems:[{id:\"\",label:\"(none)\"},{id:\"CHANnel1\",label:\"CH1\"},{id:\"CHANnel2\",label:\"CH2\"},{id:\"CHANnel3\",label:\"CH3\"},{id:\"CHANnel4\",label:\"CH4\"}],\n              visible:function(v){return v.category===\"O\";} },\n            { name:\"addstat\", displayName:\"Show on screen\", type:\"boolean\" }\n        ]\n    }, { category:\"V\", vitem:\"VPP\", hitem:\"FREQuency\", oitem:\"PPULses\",\n         source:\"CHANnel1\", source2:\"\", addstat:true });\n\n    if (!vals) { notify.info(\"Measure cancelled\"); connection.release(); return; }\n\n    var item = vals.category===\"V\"?vals.vitem : vals.category===\"H\"?vals.hitem : vals.oitem;\n    var unit = UNIT_MAP[item]||\"\";\n    var srcArg = vals.source;\n    if (vals.category===\"O\" && vals.source2) srcArg += \",\"+vals.source2;\n\n    connection.command(\":RUN\");\n    await new Promise(r=>setTimeout(r,200));\n\n    if (vals.addstat) {\n        // Enable statistics display for this item\n        connection.command(\":MEASure:STATistic:ITEM \"+item+\",\"+srcArg);\n    }\n    var v = parseFloat(qts(await connection.query(\":MEASure:ITEM? \"+item+\",\"+srcArg)));\n    var disp = Math.abs(v)>9e36 ? \"invalid (no signal?)\"\n             : (unit===\"%\"||unit===\"\\u00b0\") ? parseFloat(v.toPrecision(5))+\" \"+unit\n             : siFmt(v,unit);\n    notify.info(\"Measure \"+item+\" [\"+vals.source+(vals.source2?\"\\u2192\"+vals.source2:\"\")+\"]: \"+disp);\n} catch(e) {\n    notify.error(\"Measure failed: \"+e.message);\n} finally {\n    connection.release();\n}\n"
+        },
+        "showInToolbar": true,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#009688",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "542eb471-fed2-48b7-aa2c-c65b4ff8ed74",
+        "name": "AWG",
+        "action": {
+          "type": "javascript",
+          "data": "\n// \u2500\u2500 MHO98 AWG Comprehensive Setup v1 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n// Both channels, all 13 waveforms, modulation (AM/FM/PM), phase, impedance,\n// amplitude by Vpp/High+Low, frequency/period, waveform-specific params.\n// Modulation fields shown/hidden via visible() based on mode selection.\n\nfunction qts(r){\n    if(r===null||r===undefined)return\"\";\n    if(typeof r===\"string\")return r;\n    if(typeof r===\"number\")return String(r);\n    if(r.data){var t=new TextDecoder().decode(new Uint8Array(r.data));\n        return t.charAt(0)==='#'?t.substring(2+parseInt(t.charAt(1))):t;}\n    return String(r);\n}\nfunction siFmt(v,unit){\n    if(!isFinite(v))return String(v)+\" \"+unit;\n    var a=Math.abs(v),sg=v<0?\"-\":\"\";\n    var P=[[1e9,\"G\"],[1e6,\"M\"],[1e3,\"k\"],[1,\"\"],[1e-3,\"m\"],[1e-6,\"\\u00b5\"],[1e-9,\"n\"]];\n    if(a===0)return\"0 \"+unit;\n    for(var i=0;i<P.length;i++){if(a>=P[i][0]*0.9999)return sg+parseFloat((a/P[i][0]).toPrecision(5))+\" \"+P[i][1]+unit;}\n    return sg+a.toExponential(3)+\" \"+unit;\n}\nasync function resetAndAcquire(){\n    try{connection.release();}catch(e){}\n    await new Promise(r=>setTimeout(r,400));\n    await connection.acquire(true);\n}\n\nawait resetAndAcquire();\ntry {\n    var vals = await input({\n        title: \"MHO98 \u2014 AWG Comprehensive Setup\",\n        size: \"large\",\n        fields: [\n            // \u2500\u2500 Channel & Output \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n            { name:\"ch\", displayName:\"Channel\", type:\"enum\",\n              enumItems:[{id:\"1\",label:\"AWG 1\"},{id:\"2\",label:\"AWG 2\"}],\n              fullLine:false },\n            { name:\"output\", displayName:\"Output\", type:\"enum\",\n              enumItems:[{id:\"ON\",label:\"On\"},{id:\"OFF\",label:\"Off\"}],\n              fullLine:false },\n            { name:\"impedance\", displayName:\"Impedance\", type:\"enum\",\n              enumItems:[{id:\"OMEG\",label:\"High Z\"},{id:\"FIFTy\",label:\"Load (50\\u03a9)\"}],\n              fullLine:false },\n\n            // \u2500\u2500 Waveform \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n            { name:\"wave\", displayName:\"Waveform\", type:\"enum\",\n              enumItems:[\n                  {id:\"SINusoid\",label:\"Sine\"},\n                  {id:\"SQUare\",  label:\"Square\"},\n                  {id:\"RAMP\",    label:\"Ramp\"},\n                  {id:\"NOISe\",   label:\"Noise\"},\n                  {id:\"DC\",      label:\"DC\"},\n                  {id:\"ARB\",     label:\"Arbitrary (ARB)\"},\n                  {id:\"EXPRise\", label:\"Exp Rise\"},\n                  {id:\"EXPFall\", label:\"Exp Fall\"},\n                  {id:\"ECG1\",    label:\"ECG1\"},\n                  {id:\"GAUSsian\",label:\"Gaussian\"},\n                  {id:\"LORentz\", label:\"Lorentz\"},\n                  {id:\"HAVersine\",label:\"Haversine\"},\n                  {id:\"SINC\",    label:\"Sinc\"}\n              ] },\n\n            // \u2500\u2500 Frequency / Period (not for DC or Noise) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n            { name:\"freqmode\", displayName:\"Set by\", type:\"enum\",\n              enumItems:[{id:\"FREQ\",label:\"Frequency\"},{id:\"PER\",label:\"Period\"}],\n              visible:function(v){return v.wave!==\"DC\"&&v.wave!==\"NOISe\";} },\n            { name:\"freq\", displayName:\"Frequency (Hz)\", type:\"number\", unit:\"frequency\",\n              visible:function(v){return v.wave!==\"DC\"&&v.wave!==\"NOISe\"&&v.freqmode===\"FREQ\";} },\n            { name:\"period\", displayName:\"Period (s)\", type:\"number\", unit:\"time\",\n              visible:function(v){return v.wave!==\"DC\"&&v.wave!==\"NOISe\"&&v.freqmode===\"PER\";} },\n\n            // \u2500\u2500 Amplitude \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n            { name:\"amplmode\", displayName:\"Amplitude mode\", type:\"enum\",\n              enumItems:[{id:\"VPP\",label:\"Vpp + Offset\"},{id:\"HL\",label:\"High + Low\"}] },\n            { name:\"ampl\", displayName:\"Amplitude (Vpp)\", type:\"number\", unit:\"voltage\",\n              visible:function(v){return v.amplmode===\"VPP\";},\n              formText:\"Load: 1mVpp\u201310Vpp (f\\u226450MHz), 1mVpp\u20135Vpp (f>50MHz); HighZ: 2mVpp\u201320Vpp\" },\n            { name:\"offset\", displayName:\"Offset (V)\", type:\"number\", unit:\"voltage\",\n              visible:function(v){return v.amplmode===\"VPP\";} },\n            { name:\"high\", displayName:\"High Level (V)\", type:\"number\", unit:\"voltage\",\n              visible:function(v){return v.amplmode===\"HL\";} },\n            { name:\"low\", displayName:\"Low Level (V)\", type:\"number\", unit:\"voltage\",\n              visible:function(v){return v.amplmode===\"HL\";} },\n\n            // \u2500\u2500 Phase (not for DC or Noise) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n            { name:\"phase\", displayName:\"Phase (\\u00b0)\", type:\"number\",\n              visible:function(v){return v.wave!==\"DC\"&&v.wave!==\"NOISe\";},\n              formText:\"0\\u00b0 to 360\\u00b0\" },\n\n            // \u2500\u2500 Waveform-specific parameters \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n            { name:\"duty\", displayName:\"Square Duty Cycle (%)\", type:\"number\",\n              visible:function(v){return v.wave===\"SQUare\";},\n              formText:\"1% to 99%\",\n              minValue:1, maxValue:99 },\n            { name:\"symm\", displayName:\"Ramp Symmetry (%)\", type:\"number\",\n              visible:function(v){return v.wave===\"RAMP\";},\n              formText:\"0% to 100%\",\n              minValue:0, maxValue:100 },\n            { name:\"arbpath\", displayName:\"ARB File Path\", type:\"string\",\n              visible:function(v){return v.wave===\"ARB\";},\n              formText:\"e.g. D:\\\\\\\\USER\\\\\\\\arb_file.csv\" },\n\n            // \u2500\u2500 Modulation \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n            { name:\"modstate\", displayName:\"Modulation\", type:\"enum\",\n              enumItems:[{id:\"OFF\",label:\"Off\"},{id:\"ON\",label:\"On\"}],\n              visible:function(v){return v.wave!==\"DC\"&&v.wave!==\"NOISe\"&&v.wave!==\"ARB\";} },\n            { name:\"modtype\", displayName:\"Modulation Type\", type:\"enum\",\n              enumItems:[{id:\"AM\",label:\"AM (Amplitude)\"},{id:\"FM\",label:\"FM (Frequency)\"},{id:\"PM\",label:\"PM (Phase)\"}],\n              visible:function(v){return v.modstate===\"ON\"&&v.wave!==\"DC\"&&v.wave!==\"NOISe\"&&v.wave!==\"ARB\";} },\n\n            // AM\n            { name:\"amdepth\", displayName:\"AM Depth (%)\", type:\"number\",\n              visible:function(v){return v.modstate===\"ON\"&&v.modtype===\"AM\";},\n              formText:\"0% to 120%\", minValue:0, maxValue:120 },\n            { name:\"amfreq\", displayName:\"AM Modulating Freq (Hz)\", type:\"number\", unit:\"frequency\",\n              visible:function(v){return v.modstate===\"ON\"&&v.modtype===\"AM\";},\n              formText:\"2mHz to 1MHz\" },\n            { name:\"amfunc\", displayName:\"AM Modulating Wave\", type:\"enum\",\n              enumItems:[{id:\"SINusoid\",label:\"Sine\"},{id:\"SQUare\",label:\"Square\"},{id:\"TRIangle\",label:\"Triangle\"},{id:\"UPRamp\",label:\"Up Ramp\"},{id:\"DNRamp\",label:\"Down Ramp\"},{id:\"NOISe\",label:\"Noise\"}],\n              visible:function(v){return v.modstate===\"ON\"&&v.modtype===\"AM\";} },\n\n            // FM\n            { name:\"fmdev\", displayName:\"FM Deviation (Hz)\", type:\"number\", unit:\"frequency\",\n              visible:function(v){return v.modstate===\"ON\"&&v.modtype===\"FM\";},\n              formText:\"Carrier freq \\u00f7 2 max\" },\n            { name:\"fmfreq\", displayName:\"FM Modulating Freq (Hz)\", type:\"number\", unit:\"frequency\",\n              visible:function(v){return v.modstate===\"ON\"&&v.modtype===\"FM\";},\n              formText:\"2mHz to 1MHz\" },\n            { name:\"fmfunc\", displayName:\"FM Modulating Wave\", type:\"enum\",\n              enumItems:[{id:\"SINusoid\",label:\"Sine\"},{id:\"SQUare\",label:\"Square\"},{id:\"TRIangle\",label:\"Triangle\"},{id:\"UPRamp\",label:\"Up Ramp\"},{id:\"DNRamp\",label:\"Down Ramp\"},{id:\"NOISe\",label:\"Noise\"}],\n              visible:function(v){return v.modstate===\"ON\"&&v.modtype===\"FM\";} },\n\n            // PM\n            { name:\"pmdev\", displayName:\"PM Deviation (\\u00b0)\", type:\"number\",\n              visible:function(v){return v.modstate===\"ON\"&&v.modtype===\"PM\";},\n              formText:\"0\\u00b0 to 360\\u00b0\", minValue:0, maxValue:360 },\n            { name:\"pmfreq\", displayName:\"PM Modulating Freq (Hz)\", type:\"number\", unit:\"frequency\",\n              visible:function(v){return v.modstate===\"ON\"&&v.modtype===\"PM\";},\n              formText:\"2mHz to 1MHz\" },\n            { name:\"pmfunc\", displayName:\"PM Modulating Wave\", type:\"enum\",\n              enumItems:[{id:\"SINusoid\",label:\"Sine\"},{id:\"SQUare\",label:\"Square\"},{id:\"TRIangle\",label:\"Triangle\"},{id:\"UPRamp\",label:\"Up Ramp\"},{id:\"DNRamp\",label:\"Down Ramp\"},{id:\"NOISe\",label:\"Noise\"}],\n              visible:function(v){return v.modstate===\"ON\"&&v.modtype===\"PM\";} },\n\n            // \u2500\u2500 Align Phase \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n            { name:\"alignphase\", displayName:\"Align Phase on Apply\", type:\"boolean\",\n              formText:\"Synchronises CH1 and CH2 phase\" }\n        ]\n    }, {\n        ch:\"1\", output:\"ON\", impedance:\"OMEG\",\n        wave:\"SINusoid\", freqmode:\"FREQ\", freq:1000, period:0.001,\n        amplmode:\"VPP\", ampl:5.0, offset:0, high:2.5, low:-2.5,\n        phase:0, duty:50, symm:50, arbpath:\"\",\n        modstate:\"OFF\", modtype:\"AM\",\n        amdepth:100, amfreq:100, amfunc:\"SINusoid\",\n        fmdev:1000, fmfreq:100, fmfunc:\"SINusoid\",\n        pmdev:90, pmfreq:100, pmfunc:\"SINusoid\",\n        alignphase:false\n    });\n\n    if (!vals) {\n        notify.info(\"AWG setup cancelled\");\n        connection.release();\n        return;\n    }\n\n    var n = vals.ch;\n\n    // \u2500\u2500 1. Impedance first \u2014 affects valid amplitude range \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n    connection.command(\":SOURce\"+n+\":IMPedance \"+vals.impedance);\n\n    // \u2500\u2500 2. Waveform type \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n    connection.command(\":SOURce\"+n+\":FUNCtion \"+vals.wave);\n\n    // \u2500\u2500 3. Frequency or Period (not for DC/Noise) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n    if (vals.wave!==\"DC\" && vals.wave!==\"NOISe\") {\n        if (vals.freqmode===\"FREQ\") {\n            connection.command(\":SOURce\"+n+\":FREQuency \"+vals.freq);\n        } else {\n            connection.command(\":SOURce\"+n+\":PERiod \"+vals.period);\n        }\n    }\n\n    // \u2500\u2500 4. Amplitude \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n    if (vals.amplmode===\"VPP\") {\n        connection.command(\":SOURce\"+n+\":VOLTage:AMPLitude \"+vals.ampl);\n        connection.command(\":SOURce\"+n+\":VOLTage:OFFSet \"+vals.offset);\n    } else {\n        connection.command(\":SOURce\"+n+\":VOLTage:HIGH \"+vals.high);\n        connection.command(\":SOURce\"+n+\":VOLTage:LOW \"+vals.low);\n    }\n\n    // \u2500\u2500 5. Phase \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n    if (vals.wave!==\"DC\" && vals.wave!==\"NOISe\") {\n        connection.command(\":SOURce\"+n+\":PHASe \"+vals.phase);\n    }\n\n    // \u2500\u2500 6. Waveform-specific params \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n    if (vals.wave===\"SQUare\") {\n        connection.command(\":SOURce\"+n+\":FUNCtion:SQUare:DUTY \"+vals.duty);\n    }\n    if (vals.wave===\"RAMP\") {\n        connection.command(\":SOURce\"+n+\":FUNCtion:RAMP:SYMMetry \"+vals.symm);\n    }\n    if (vals.wave===\"ARB\" && vals.arbpath && vals.arbpath.trim()!==\"\") {\n        connection.command(':SOURce'+n+':LOAD:ARBitrary \"'+vals.arbpath.trim()+'\"');\n    }\n\n    // \u2500\u2500 7. Modulation \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n    if (vals.modstate===\"ON\" && vals.wave!==\"DC\" && vals.wave!==\"NOISe\" && vals.wave!==\"ARB\") {\n        connection.command(\":SOURce\"+n+\":MOD:TYPe \"+vals.modtype);\n        if (vals.modtype===\"AM\") {\n            connection.command(\":SOURce\"+n+\":MOD:AM:DEPTh \"+vals.amdepth);\n            connection.command(\":SOURce\"+n+\":MOD:AM:INTernal:FREQuency \"+vals.amfreq);\n            connection.command(\":SOURce\"+n+\":MOD:AM:INTernal:FUNCtion \"+vals.amfunc);\n        } else if (vals.modtype===\"FM\") {\n            connection.command(\":SOURce\"+n+\":MOD:FM:DEViation \"+vals.fmdev);\n            connection.command(\":SOURce\"+n+\":MOD:FM:INTernal:FREQuency \"+vals.fmfreq);\n            connection.command(\":SOURce\"+n+\":MOD:FM:INTernal:FUNCtion \"+vals.fmfunc);\n        } else if (vals.modtype===\"PM\") {\n            connection.command(\":SOURce\"+n+\":MOD:PM:DEViation \"+vals.pmdev);\n            connection.command(\":SOURce\"+n+\":MOD:PM:INTernal:FREQuency \"+vals.pmfreq);\n            connection.command(\":SOURce\"+n+\":MOD:PM:INTernal:FUNCtion \"+vals.pmfunc);\n        }\n        connection.command(\":SOURce\"+n+\":MOD:STATe ON\");\n    } else {\n        connection.command(\":SOURce\"+n+\":MOD:STATe OFF\");\n    }\n\n    // \u2500\u2500 8. Align phase if requested \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n    if (vals.alignphase) {\n        connection.command(\":SOURce\"+n+\":PHASe:SYNChronize\");\n    }\n\n    // \u2500\u2500 9. Output state \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n    connection.command(\":SOURce\"+n+\":OUTPut:STATe \"+vals.output);\n\n    // \u2500\u2500 10. Read back and confirm \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n    await new Promise(r=>setTimeout(r,300));\n    var wv = qts(await connection.query(\":SOURce\"+n+\":FUNCtion?\")).trim();\n    var fr = qts(await connection.query(\":SOURce\"+n+\":FREQuency?\")).trim();\n    var am = qts(await connection.query(\":SOURce\"+n+\":VOLTage:AMPLitude?\")).trim();\n    var of = qts(await connection.query(\":SOURce\"+n+\":VOLTage:OFFSet?\")).trim();\n    var im = qts(await connection.query(\":SOURce\"+n+\":IMPedance?\")).trim();\n    var ms = qts(await connection.query(\":SOURce\"+n+\":MOD:STATe?\")).trim();\n\n    var summary = \"AWG\"+n+\": \"+wv;\n    if (vals.wave!==\"DC\"&&vals.wave!==\"NOISe\") summary += \"  \"+siFmt(parseFloat(fr),\"Hz\");\n    summary += \"  Ampl \"+siFmt(parseFloat(am),\"Vpp\")+\"  Off \"+siFmt(parseFloat(of),\"V\");\n    summary += \"  \"+(im===\"OMEG\"||im===\"0\"?\"HighZ\":\"Load\");\n    summary += \"  OUT \"+vals.output;\n    if (ms===\"1\"||ms.toUpperCase()===\"ON\") summary += \"  MOD:\"+vals.modtype;\n\n    notify.info(summary);\n\n} catch(e) {\n    notify.error(\"AWG setup failed: \"+e.message);\n} finally {\n    connection.release();\n}\n"
+        },
+        "showInToolbar": true,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#FF5722",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "4a249138-8858-4269-ac20-152645538a1d",
+        "name": "CH1 On",
+        "action": {
+          "type": "scpi-commands",
+          "data": ":CHANnel1:DISPlay ON"
+        },
+        "showInToolbar": false,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#4CAF50",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "21977770-29fe-48f1-ac86-84de59aaa45a",
+        "name": "CH2 On",
+        "action": {
+          "type": "scpi-commands",
+          "data": ":CHANnel2:DISPlay ON"
+        },
+        "showInToolbar": false,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#4CAF50",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "6433f11a-c234-43ee-9b6c-092613275af8",
+        "name": "CH3 On",
+        "action": {
+          "type": "scpi-commands",
+          "data": ":CHANnel3:DISPlay ON"
+        },
+        "showInToolbar": false,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#4CAF50",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "f5c7cc80-2d60-41ee-8f8c-42dd5491037c",
+        "name": "CH4 On",
+        "action": {
+          "type": "scpi-commands",
+          "data": ":CHANnel4:DISPlay ON"
+        },
+        "showInToolbar": false,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#4CAF50",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "a5150bdb-5a62-41ea-9f48-d95152480032",
+        "name": "CH1 Off",
+        "action": {
+          "type": "scpi-commands",
+          "data": ":CHANnel1:DISPlay OFF"
+        },
+        "showInToolbar": false,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#4CAF50",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "d61a1547-3bb9-485a-a02b-6e86bbd8447a",
+        "name": "CH2 Off",
+        "action": {
+          "type": "scpi-commands",
+          "data": ":CHANnel2:DISPlay OFF"
+        },
+        "showInToolbar": false,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#4CAF50",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "bc433d2c-5732-46d1-9183-f2abc859057b",
+        "name": "CH3 Off",
+        "action": {
+          "type": "scpi-commands",
+          "data": ":CHANnel3:DISPlay OFF"
+        },
+        "showInToolbar": false,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#4CAF50",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "5182737a-04dd-4864-809c-78d8fb69c056",
+        "name": "CH4 Off",
+        "action": {
+          "type": "scpi-commands",
+          "data": ":CHANnel4:DISPlay OFF"
+        },
+        "showInToolbar": false,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#4CAF50",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "36e577e7-03e8-4c7c-959e-2969250b56f1",
+        "name": "AWG1 On",
+        "action": {
+          "type": "scpi-commands",
+          "data": ":SOURce1:OUTPut:STATe ON"
+        },
+        "showInToolbar": false,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#FF5722",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "dcb0512a-a867-4dc7-a510-054204e23c7e",
+        "name": "AWG1 Off",
+        "action": {
+          "type": "scpi-commands",
+          "data": ":SOURce1:OUTPut:STATe OFF"
+        },
+        "showInToolbar": false,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#FF5722",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "5405ac9c-09f3-4e0c-a5fb-3b411465a1df",
+        "name": "AWG2 On",
+        "action": {
+          "type": "scpi-commands",
+          "data": ":SOURce2:OUTPut:STATe ON"
+        },
+        "showInToolbar": false,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#FF5722",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "a66740c0-1586-497f-a5b0-86095fb7b8b8",
+        "name": "AWG2 Off",
+        "action": {
+          "type": "scpi-commands",
+          "data": ":SOURce2:OUTPut:STATe OFF"
+        },
+        "showInToolbar": false,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#FF5722",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "4d71069d-6019-4804-a0c5-d20f44b1deb1",
+        "name": "Screenshot",
+        "action": {
+          "type": "scpi-commands",
+          "data": ":DISPlay:DATA?"
+        },
+        "showInToolbar": false,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#3F51B5",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "25499999-380b-4c9e-9aa5-8ecc4e349752",
+        "name": "Clear Errors",
+        "action": {
+          "type": "scpi-commands",
+          "data": "*CLS"
+        },
+        "showInToolbar": false,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#9E9E9E",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "5748ff5b-5a24-4eb0-8854-699c93054214",
+        "name": "Diag",
+        "action": {
+          "type": "javascript",
+          "data": "\nfunction qts(r){\n    if(r===null||r===undefined)return\"\";\n    if(typeof r===\"string\")return r;\n    if(typeof r===\"number\")return String(r);\n    if(r.data){var t=new TextDecoder().decode(new Uint8Array(r.data));return t.charAt(0)==='#'?t.substring(2+parseInt(t.charAt(1))):t;}\n    return String(r);\n}\nfunction siFmt(v,unit){\n    if(!isFinite(v))return String(v)+\" \"+unit;\n    var a=Math.abs(v),sg=v<0?\"-\":\"\";\n    var P=[[1e9,\"G\"],[1e6,\"M\"],[1e3,\"k\"],[1,\"\"],[1e-3,\"m\"],[1e-6,\"\\u00b5\"],[1e-9,\"n\"],[1e-12,\"p\"]];\n    if(a===0)return\"0 \"+unit;\n    for(var i=0;i<P.length;i++){if(a>=P[i][0]*0.9999)return sg+parseFloat((a/P[i][0]).toPrecision(5))+\" \"+P[i][1]+unit;}\n    return sg+a.toExponential(3)+\" \"+unit;\n}\nasync function resetAndAcquire(){\n    try{connection.release();}catch(e){}\n    await new Promise(r=>setTimeout(r,400));\n    await connection.acquire(true);\n}\n\n// \u2500\u2500 MHO98 Diagnostic v1 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nawait resetAndAcquire();\nnotify.info(\"MHO98 Diag: acquired\");\ntry {\n    var idn = qts(await connection.query(\"*IDN?\")).trim();\n    notify.info(\"IDN: \"+idn.substring(0,50));\n    var ver = qts(await connection.query(\":SYSTem:VERSion?\")).trim();\n    notify.info(\"SCPI ver: \"+ver);\n    for (var c=1;c<=4;c++){\n        var disp=qts(await connection.query(\"CHANnel\"+c+\":DISPlay?\")).trim();\n        var sc=qts(await connection.query(\"CHANnel\"+c+\":SCALe?\")).trim();\n        notify.info(\"CH\"+c+\": disp=\"+disp+\" scale=\"+sc);\n    }\n    var srate=qts(await connection.query(\":ACQuire:SRATe?\")).trim();\n    var mdep=qts(await connection.query(\":ACQuire:MDEPth?\")).trim();\n    var tscale=qts(await connection.query(\":TIMebase:SCALe?\")).trim();\n    notify.info(\"SRate=\"+srate+\" MDepth=\"+mdep+\" TScale=\"+tscale);\n    var tstat=qts(await connection.query(\":TRIGger:STATus?\")).trim();\n    notify.info(\"Trig status: \"+tstat);\n    var err=qts(await connection.query(\":SYSTem:ERRor?\")).trim();\n    notify.info(\"Error queue: \"+err);\n} catch(e) {\n    notify.error(\"Diag failed: \"+e.message);\n} finally {\n    connection.release();\n    notify.info(\"MHO98 Diag done.\");\n}\n"
+        },
+        "showInToolbar": false,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#9E9E9E",
+        "requiresConfirmation": false
+      },
+      {
+        "id": "f8139c9f-6065-43d1-bf14-ba4b96bd4ede",
+        "name": "Reset",
+        "action": {
+          "type": "scpi-commands",
+          "data": "*RST"
+        },
+        "showInToolbar": false,
+        "toolbarButtonPosition": 0,
+        "toolbarButtonColor": "#F44336",
+        "requiresConfirmation": true
+      }
+    ],
+    "moreDescription": "Comprehensive MHO98 support module.\n\nConnection: Ethernet (LXI) port 5555 or USBTMC. Enter the instrument IP manually when adding to EEZ Studio. Default lab address: 192.168.1.51\n\nTOOLBAR:\n- Run / Stop / Single / Auto / Force - acquisition control\n- Capture - all displayed channels to charts\n- Live Meas - continuous Vpp/Vrms/Freq/Period/Vmax/Vmin (click Stop to end)\n- Vertical - per-channel: On/Off, coupling, impedance, probe, scale, offset, unit, BW limit, invert, fine\n- Trigger - source, slope, level, sweep, coupling, holdoff, noise reject\n- Horizontal - timebase scale/position/mode, acquisition type, averages, memory depth, expand reference; reports live sample rate\n- Measure - all items grouped Vertical (voltage) / Horizontal (time) / Other (count, delay, phase); optional on-screen statistic\n- AWG Setup - configure a generator channel\n\nSCRIPTS LIST: per-channel quick toggles, AWG output toggles, screenshot, clear errors, diagnostic, reset.\n\nCapture uses RIGOL_BYTE format with the standard preamble conversion V = (raw - YORigin - YREFerence) x YINCrement."
+  }
+}
