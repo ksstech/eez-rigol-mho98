@@ -1,7 +1,13 @@
 # eez-rigol-mho98
 
-EEZ Studio extension for the **Rigol MHO98** — 1 GHz, 4-channel, 4 GSa/s
-oscilloscope with a built-in dual-channel 100 MHz AWG.
+EEZ Studio extension for the **Rigol MHO98** — 1 GHz, 4-channel, 4 GSa/s,
+12-bit oscilloscope (MHO900 series special edition) with 500 Mpts memory
+depth, a standard 16-channel logic analyzer, and a built-in dual-channel
+100 MHz AWG.
+
+Note: this extension does not yet expose the logic analyzer — see
+[ksstech/eez: docs/rigol-scope-support-plan.md](https://github.com/ksstech/eez/blob/master/docs/rigol-scope-support-plan.md)
+for the plan that adds it.
 
 Like [eez-keysight-34465a](https://github.com/ksstech/eez-keysight-34465a)
 and unlike [eez-ea-ps2k](https://github.com/ksstech/eez-ea-ps2k), this
