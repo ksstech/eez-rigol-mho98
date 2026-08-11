@@ -2,7 +2,7 @@
   "id": "a7c3e910-9b2c-4d53-bac9-8acf3e009800",
   "name": "rigol_mho98",
   "displayName": "Rigol MHO98",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Rigol MHO98 4-channel 1 GHz 4 GSa/s oscilloscope with dual 100 MHz arbitrary waveform generator. Firmware v1.05.02.",
   "author": "Community",
   "image": "image.png",
